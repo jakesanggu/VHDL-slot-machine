@@ -1,0 +1,517 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+use ieee.numeric_std.all;
+
+
+entity project_Slot is
+port(
+	push_button : 			in signed(15 downto 0);
+	Seven_Seg_abcdefgh : 	out signed(7 downto 0);
+	Seven_Seg_sel : 		out signed(5 downto 0); 
+	CLK					:	in	std_logic
+	);
+end entity;
+
+
+architecture project_Slot_Module of project_Slot is
+
+component Display port(
+		BCD_IN_5 : 				in signed(3 downto 0);
+		BCD_IN_4 : 				in signed(3 downto 0);
+		BCD_IN_3 : 				in signed(3 downto 0);
+		BCD_IN_2 : 				in signed(3 downto 0);
+		BCD_IN_1 : 				in signed(3 downto 0);
+		BCD_IN_0 : 				in signed(3 downto 0);
+		SEGMENT_OUT_abcdefgh: out signed(7 downto 0);
+		Seven_Seg_sel : 		out signed(5 downto 0);
+		CLK_Display : in std_logic;
+		Write_Enable: in std_logic
+	);
+ end component;	
+
+
+component Binary_to_BCD  port (
+    Binary_Num   : in  signed (7 downto 0);
+	hundreds: out signed (3 downto 0);
+    tens     : out signed (3 downto 0);
+    ones     : out signed (3 downto 0);
+	CLK 		: in std_logic
+								);
+
+end component;
+
+component Button_Check port(
+	Button_Hardware   : in signed(15 downto 0);
+	CLK				:in std_logic;
+	Restart_Soft	: out std_logic;
+	STOP_5_Soft		: out std_logic;
+	STOP_4_Soft		: out std_logic;
+	STOP_3_Soft		: out std_logic
+ );
+end component;
+
+--????? ??----------------------------------------------------------------------------------------------------------
+
+	signal Counter 	: signed(31 downto 0):=X"00000000";                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+	signal Period_20ms_ClK	: std_logic :='0';
+	signal Period_10ms_ClK	: std_logic :='0';
+	signal Period_5ms_ClK	: std_logic :='0';
+	signal Period_2ms_ClK	: std_logic :='0';
+	signal Button_CLK		:	std_logic := '0';
+	
+--Seven Segment ? ??? BCD? ?? 5MSB 0 LSD	
+	signal SIG5_BCD : signed(3 downto 0) :="0000";
+	signal SIG4_BCD : signed(3 downto 0) :="0000";
+	signal SIG3_BCD : signed(3 downto 0) :="0000";
+	signal SIG2_BCD : signed(3 downto 0) :="0000";
+	signal SIG1_BCD : signed(3 downto 0) :="0000";
+	signal SIG0_BCD : signed(3 downto 0) :="0000";
+--Seven Segment ? abcdefgh ??
+	signal Write_E : std_logic := '0';
+	signal Write_Num : std_logic := '0';
+	signal Write_Score : std_logic := '0';
+	signal Write_Num_1	: std_logic := '0';
+	signal Write_Num_2	: std_logic := '0';
+	
+--???? ??-------------------------------------------------------------------------------
+	signal Restart_Bt 	: std_logic:= '0';
+	signal STOP_5_Bt	: std_logic:= '0';
+	signal STOP_4_Bt	: std_logic:= '0';
+	signal STOP_3_Bt	: std_logic:= '0';
+-----------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------??? ???? ??
+	signal Calculate_Score : std_logic := '0';
+	signal Final_Val : signed(7 downto 0) := "00000000";
+	signal Final_Val_1 : signed(7 downto 0) := "00000000";
+	signal Decimal_10TH	:signed(3 downto 0) := "0000";
+	signal Decimal_1TH	:signed(3 downto 0) := "0000";
+	signal Decimal_100TH	:signed(3 downto 0) := "0000";
+	
+---------------------------------------------------------------------------------------------------------------
+
+begin
+
+---?? ??------------------------------------------------------------------------
+process(CLK)	--????? clock_50m ? process?
+	begin
+	if rising_edge(CLK) then	   --clock_50m? ???? ??
+		Counter <= Counter + 1; --init_counter ??? ???.
+	end if;
+end process;
+Button_CLK 		<= Counter(8);
+Period_20ms_ClK <= Counter(19);
+Period_10ms_ClK<= Counter(18);
+Period_5ms_ClK<=Counter(17);
+Period_2ms_ClK <= Counter(16);
+
+
+--??????????????????????????????????????????????????????????????????? ????????????????????????????????????????
+process(Period_20ms_ClK,Period_10ms_ClK,Period_5ms_ClK)
+begin
+
+if ((STOP_5_Bt = '0' ))then --?? 5? ??? 20ms? ??? ??
+			Write_Num <= '1';
+				if SIG5_BCD = "1001" then SIG5_BCD <= "0000";
+				else
+				SIG5_BCD <= SIG5_BCD + 1;
+				end if;
+elsif ((STOP_4_Bt = '0' )) then
+		Write_Num_1 <= '1';
+				if SIG4_BCD = "1001" then SIG4_BCD <= "0000";
+				else
+				SIG4_BCD <= SIG4_BCD + 1;
+				end if;
+elsif ((STOP_3_Bt = '0' )) then
+			Write_Num_2 <= '1';
+				if SIG3_BCD = "1001" then SIG3_BCD <= "0000";
+				else
+				SIG3_BCD <= SIG3_BCD + 1;
+				end if;
+	
+else
+			Write_Num <= '0';
+			Write_Num_1<= '0';
+			Write_Num_2<= '0';
+end if;
+
+end process;
+
+
+
+------------------------------------------?? ?? ??--------------------------
+process(CLK,STOP_5_Bt,STOP_4_Bt,STOP_3_Bt)
+begin
+--if rising_edge(CLK) then
+	if ((STOP_5_Bt = '1' ) and (STOP_4_Bt ='1' ) and (STOP_3_Bt = '1') and Calculate_Score = '0') then --??? ?? ????? ??? ?
+			Calculate_Score <= '1'; --?? ?? ??
+				
+------------------------------------------?? ???-----------------------------------------------------------------------			
+			if(SIG5_BCD = "1010" or SIG4_BCD = "1010" or SIG3_BCD = "1010") then
+				if( SIG5_BCD = "1010"  and SIG4_BCD /= "1010" and SIG3_BCD /= "1010") then
+					Final_Val <= ("0000" & "0000") +("0000" & SIG4_BCD) +("0000" & SIG3_BCD);
+				end if;
+				if( SIG4_BCD = "1010"  and SIG5_BCD /= "1010" and SIG3_BCD /= "1010") then
+					Final_Val <= ("0000" & "0000") +("0000" & SIG5_BCD) +("0000" & SIG3_BCD);
+				end if;
+				if( SIG3_BCD = "1010"  and SIG5_BCD /= "1010" and SIG4_BCD /= "1010") then
+					Final_Val <= ("0000" & "0000") +("0000" & SIG4_BCD) +("0000" & SIG5_BCD);
+				end if;
+				if( SIG5_BCD = "1010"  and SIG4_BCD = "1010" and SIG3_BCD /= "1010") then
+					Final_Val <= ("0000" & "0000") +("0000" & "0000") +("0000" & SIG3_BCD);
+				end if;
+				if( SIG4_BCD /= "1010"  and SIG5_BCD = "1010" and SIG3_BCD = "1010") then
+					Final_Val <= ("0000" & "0000") +("0000" & SIG4_BCD) +("0000" & "0000");
+				end if;
+				if( SIG3_BCD = "1010"  and SIG5_BCD /= "1010" and SIG4_BCD = "1010") then
+					Final_Val <= ("0000" & "0000") +("0000" & SIG5_BCD) +("0000" & "0000");
+				end if;
+---------triple 000s--------------------------------------------------------------------------------------				
+				if( SIG3_BCD = "1010"  and SIG5_BCD = "1010" and SIG4_BCD = "1010") then
+					Final_Val <= ("0000" & "0000") +("0000" & "0000") +("0000" & "0000");
+				end if;
+			else
+			Final_Val <= ("0000" & SIG5_BCD) +("0000" & SIG4_BCD) +("0000" & SIG3_BCD);
+			end if;
+	elsif ((STOP_5_Bt = '0' ) and (STOP_4_Bt ='0' ) and (STOP_3_Bt = '0')) then
+		Calculate_Score <= '0'; --?? ?? ??
+	end if;
+--end if;
+end process;
+
+
+process(CLK)
+begin
+if rising_edge(CLK) then
+	if(Calculate_Score = '1') then --??? ??? ????
+	SIG1_BCD <= Decimal_10TH;
+	SIG0_BCD <= Decimal_1TH;
+	Write_Score <= '1';
+	else
+	SIG1_BCD <= "0000";
+	SIG0_BCD <= "0000";
+	Write_Score <= '1';
+	end if;
+end if;
+end process;
+
+---------------------------------------?? ?? ??---------------------------
+
+
+------??????????????????????????????????????????????????????????????????? ????????????????????????????????????????
+
+
+----------------------------------------------------------------------------------------
+
+
+-- 3?? ??? ????? ????? ???? ?? ??? ?? ??? ??--------------------------------------------------------------------------------------------------
+SIG2_BCD <= "1111"; 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+Write_E <= (Write_Num or Write_Score or Write_Num_1 or Write_Num_2); 
+-------------------------------------????? ????? ?????-----------------------------------------------------------------------------------------------
+Button_Checker : Button_Check port map(push_button,CLK,Restart_Bt,STOP_5_Bt,STOP_4_Bt,STOP_3_Bt);
+-------------------------------------?????? ???? BCD??? ?? -------------------------------------------------------------------------------------------
+Binary_to_BCD_Changer: Binary_to_BCD port map(Final_Val,Decimal_100TH,Decimal_10TH,Decimal_1TH,Button_CLK);
+-----------------------------------?? ??? ???? ?????---------------------------------------------------------------------------
+Display_PART: Display port map(SIG5_BCD,SIG4_BCD,SIG3_BCD,SIG2_BCD,SIG1_BCD,SIG0_BCD,Seven_Seg_abcdefgh,Seven_Seg_sel,CLK,Write_E);
+end architecture;
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+use ieee.std_logic_unsigned.all;
+
+
+
+
+
+entity BCD_to_segment is
+port(
+		BCD_IN : in signed(3 downto 0);
+		SEGMENT_OUT_abcdefgh: out signed(7 downto 0);
+		CLK_BCD : in std_logic
+	);
+end entity;
+
+architecture BCD_to_segment_Module of BCD_to_segment is
+begin
+	
+	process(CLK_BCD)
+	--process is
+	begin
+
+	if(BCD_IN = "0000") then --0? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "00111111";
+	elsif(BCD_IN = "0001") then--1? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "00000110";
+	elsif(BCD_IN = "0010") then--2? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01011011";
+	elsif(BCD_IN = "0011") then--3? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01001111";
+	elsif(BCD_IN = "0100") then--4? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01100110";
+	elsif(BCD_IN = "0101") then--5? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01101101";
+	elsif(BCD_IN = "0110") then--6? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01111101";
+	elsif(BCD_IN = "0111") then--7? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "00000111";
+	elsif(BCD_IN = "1000") then--8? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01111111";
+	elsif(BCD_IN = "1001") then--9? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01100111";
+	elsif(BCD_IN = "1010") then--10/J? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "10101010";
+	elsif(BCD_IN = "1011") then--11/A? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01100111";
+	elsif(BCD_IN = "1100") then--12/K? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01100111";
+	elsif(BCD_IN = "1101") then--13/P? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01100111";
+	elsif(BCD_IN = "1110") then--14/T? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01100111";
+	elsif(BCD_IN = "1111") then--15/NULL? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "01100111";
+ 	else				--? ??? Segment ???? ??
+		SEGMENT_OUT_abcdefgh <= "00000000";
+	end if;
+	--wait for 1 ns;
+	
+	end process;
+	
+end architecture;
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+use ieee.std_logic_unsigned.all;
+
+
+
+entity Display is port
+(
+		BCD_IN_5 : 				in signed(3 downto 0);
+		BCD_IN_4 : 				in signed(3 downto 0);
+		BCD_IN_3 : 				in signed(3 downto 0);
+		BCD_IN_2 : 				in signed(3 downto 0);
+		BCD_IN_1 : 				in signed(3 downto 0);
+		BCD_IN_0 : 				in signed(3 downto 0);
+		SEGMENT_OUT_abcdefgh: out signed(7 downto 0);
+		Seven_Seg_sel : 		out signed(5 downto 0);
+		CLK_Display : in std_logic;
+		Write_Enable : in std_logic
+	);
+end entity;
+
+architecture Display_Module of Display is
+
+
+
+component BCD_to_segment  port ( BCD_IN: in signed(3 downto 0);  
+								SEGMENT_OUT_abcdefgh : out signed(7 downto 0);
+								CLK_BCD : in std_logic
+								);
+
+ end component;	
+-----------------------------------------------------------------------------------------------------------------------------
+	signal SEGMENT_OUT_abcdefgh_5 : signed(7 downto 0) :="00000000";
+	signal SEGMENT_OUT_abcdefgh_4 : signed(7 downto 0) :="00000000";
+	signal SEGMENT_OUT_abcdefgh_3 : signed(7 downto 0) :="00000000";
+	signal SEGMENT_OUT_abcdefgh_2 : signed(7 downto 0) :="00000000";
+	signal SEGMENT_OUT_abcdefgh_1 : signed(7 downto 0) :="00000000";
+	signal SEGMENT_OUT_abcdefgh_0 : signed(7 downto 0) :="00000000";
+--------------------------------------------------------------------------------
+	signal Currently_Displaying	: integer := 6;
+	
+--? ?? 6??, ?????? ??? ???? ??. 5? SEGMENT_OUT_? 5 4? 4 0?? 0??.	
+ --------------------------------------------------------------------------------
+ 
+ begin
+-----------------------------------------------------------------------------------------------------------------------------
+--?? ?? ????------------------------------------------------------------------------------------------------------------
+Process(CLK_Display,Write_Enable)
+begin
+if(Write_Enable = '1') then
+
+if (Currently_Displaying = 6 ) then
+Seven_Seg_sel <="111111";		
+Currently_Displaying <= 5;
+elsif (Currently_Displaying = 5) then
+Seven_Seg_sel <= "011111";
+SEGMENT_OUT_abcdefgh<=SEGMENT_OUT_abcdefgh_5;
+Currently_Displaying <= 4;
+elsif (Currently_Displaying = 4) then
+Seven_Seg_sel <= "101111";
+SEGMENT_OUT_abcdefgh<=SEGMENT_OUT_abcdefgh_4;
+Currently_Displaying <= 3;
+elsif (Currently_Displaying = 3) then
+Seven_Seg_sel <= "110111";
+SEGMENT_OUT_abcdefgh<=SEGMENT_OUT_abcdefgh_3;
+Currently_Displaying <= 2;
+elsif (Currently_Displaying = 2) then
+Seven_Seg_sel <= "111011";
+SEGMENT_OUT_abcdefgh<=SEGMENT_OUT_abcdefgh_2;
+Currently_Displaying <= 1;
+elsif (Currently_Displaying = 1) then
+Seven_Seg_sel <= "111101";
+SEGMENT_OUT_abcdefgh<=SEGMENT_OUT_abcdefgh_1;
+Currently_Displaying <= 0;
+elsif (Currently_Displaying = 0) then
+Seven_Seg_sel <= "111110";
+SEGMENT_OUT_abcdefgh<=SEGMENT_OUT_abcdefgh_0;
+Currently_Displaying <= 6;
+else
+Seven_Seg_sel <="111111";
+Currently_Displaying <= 6;
+end if;
+
+else
+Seven_Seg_sel <="111111";
+end if;
+
+
+end process;
+ 
+---?? bcd? ?? Seven Segment ? ??? ??
+B5 : BCD_to_segment port map(BCD_IN_5,SEGMENT_OUT_abcdefgh_5,CLK_Display);
+B4 : BCD_to_segment port map(BCD_IN_4,SEGMENT_OUT_abcdefgh_4,CLK_Display);
+B3 : BCD_to_segment port map(BCD_IN_3,SEGMENT_OUT_abcdefgh_3,CLK_Display);
+B1 : BCD_to_segment port map(BCD_IN_1,SEGMENT_OUT_abcdefgh_1,CLK_Display);
+B0 : BCD_to_segment port map(BCD_IN_0,SEGMENT_OUT_abcdefgh_0,CLK_Display); 
+
+end architecture;
+
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+ 
+entity Binary_to_BCD is
+   Port ( 
+      Binary_Num   : in  signed (7 downto 0);
+    hundreds : out signed (3 downto 0);
+      tens     : out signed (3 downto 0);
+      ones     : out signed (3 downto 0);
+	  CLK		: in std_logic 
+   );
+end entity;
+ 
+architecture Binary_to_BCD_Module of Binary_to_BCD is
+begin
+
+process (CLK,Binary_Num)
+      variable shift : signed(19 downto 0);
+      alias num is shift(7 downto 0);
+      alias one is shift(11 downto 8);
+      alias ten is shift(15 downto 12);
+      alias hun is shift(19 downto 16);
+   begin
+      num := Binary_Num;
+      one := X"0";
+      ten := X"0";
+      hun := X"0";
+      for i in 1 to num'Length loop
+         if one >= 5 then
+            one := one + 3;
+         end if;
+         
+         if ten >= 5 then
+            ten := ten + 3;
+         end if;
+         
+        if hun >= 5 then
+         hun := hun + 3;
+         end if;
+         shift := shift_left(shift, 1);
+      end loop;
+    hundreds <= signed(hun);
+      tens     <= signed(ten);
+      ones     <= signed(one);
+	  
+   end process;
+ 
+end architecture;
+
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+ 
+
+------------------------------------?? ??? ??????? ???? ???? ?? ??? ????, ??? ????? ?? ???? ?????.
+ entity Button_Check is
+ port
+ (
+	Button_Hardware   : in  signed(15 downto 0);
+	CLK				:	in 	std_logic;
+	Restart_Soft	: out std_logic;
+	STOP_5_Soft		: out std_logic;
+	STOP_4_Soft		: out std_logic;
+	STOP_3_Soft		: out std_logic
+ );
+ end entity;
+ 
+
+ architecture Button_Check_Module of Button_Check is
+ signal Past_Button_Hardware	: signed(15 downto 0) :=X"0000";
+ signal Restart_Bt_s				:std_logic :='0';
+ signal	STOP_5_Soft_s				:std_logic :='0';
+ signal STOP_4_Soft_s				:std_logic :='0';
+ signal	STOP_3_Soft_s				:std_logic :='0';
+ 
+ begin
+ process(CLK)
+ begin
+ if rising_edge(CLK) then
+ 		Past_Button_Hardware <= (not Button_Hardware);
+----??? ??? ???? ???? S5,S4,S3? ?? ?? ??? ????. 		
+		if (Past_Button_Hardware = (not Button_Hardware)) then
+				
+				Restart_Bt_s <= (Past_Button_Hardware(15));
+								
+								
+			if(Restart_Bt_s = '1')		then
+					--reset;
+				Restart_Bt_s <= '0';
+				STOP_5_Soft_S <= '0';
+				STOP_4_Soft_s <= '0';
+				STOP_3_Soft_s <= '0';
+								
+			else					
+				if(Past_Button_Hardware(14) /= '0') then
+				STOP_5_Soft_s <=(Past_Button_Hardware(14));
+				end if;
+			
+				if(Past_Button_Hardware(13) /= '0') then
+				STOP_4_Soft_s <=(Past_Button_Hardware(13));
+				end if;
+				if(Past_Button_Hardware(12) /= '0') then
+				STOP_3_Soft_s <= (Past_Button_Hardware(12));
+				end if;
+			
+			end if;
+		--?? ??
+		else
+		--?? ? ?????
+		--nothing!
+		end if;
+ end if;
+ 
+ Restart_Soft <= Restart_Bt_s;
+ STOP_5_Soft <= STOP_5_Soft_s;
+ STOP_4_Soft <= STOP_4_Soft_s;
+ STOP_3_Soft <= STOP_3_Soft_s;
+ 
+ 
+ end process;
+ end architecture;
+
+
+
+
